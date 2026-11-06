@@ -671,6 +671,8 @@ class Patch(models.Model, DiffableModel):
                 self.targetversion.version if self.targetversion else None
             ),
             "last_email_time": self.lastmail,
+            "created": self.created,
+            "modified": self.modified,
         }
 
     def __str__(self):
