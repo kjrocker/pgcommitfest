@@ -12,6 +12,7 @@ from pgcommitfest.commitfest.models import (
     MailThreadAttachment,
     Patch,
     PatchOnCommitFest,
+    TargetVersion,
 )
 
 pytestmark = pytest.mark.django_db
@@ -131,6 +132,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob, charlie):
     patch1 = Patch.objects.create(name="Add feature X")
     patch1.authors.add(alice)
     patch1.reviewers.add(bob)
+    patch1.targetversion = TargetVersion.objects.create(version="19")
     patch1.lastmail = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
     patch1.save()
 
@@ -197,6 +199,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob, charlie):
     assert p1["authors"] == ["Alice Anderson"]
     assert p1["reviewers"] == ["Bob Brown"]
     assert p1["committer"] is None
+    assert p1["target_version"] == "19"
     assert p1["last_email_time"] == "2025-01-15T10:30:00+00:00"
     assert p1["enterdate"] == "2025-01-01T12:00:00+00:00"
     assert p1["leavedate"] is None
@@ -208,6 +211,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob, charlie):
     assert sorted(p2["authors"]) == ["Alice Anderson", "Bob Brown"]
     assert p2["reviewers"] == []
     assert p2["committer"] == "Charlie Chen"
+    assert p2["target_version"] is None
     assert p2["last_email_time"] is None
     assert p2["enterdate"] == "2025-01-02T08:00:00+00:00"
     assert p2["leavedate"] == "2025-01-20T16:45:00+00:00"

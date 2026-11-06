@@ -667,6 +667,9 @@ class Patch(models.Model, DiffableModel):
                 if self.committer
                 else None
             ),
+            "target_version": (
+                self.targetversion.version if self.targetversion else None
+            ),
             "last_email_time": self.lastmail,
         }
 
