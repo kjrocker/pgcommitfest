@@ -659,6 +659,9 @@ class Patch(models.Model, DiffableModel):
             "id": self.id,
             "name": self.name,
             "authors": [f"{a.first_name} {a.last_name}" for a in self.authors.all()],
+            "reviewers": [
+                f"{r.first_name} {r.last_name}" for r in self.reviewers.all()
+            ],
             "last_email_time": self.lastmail,
         }
 

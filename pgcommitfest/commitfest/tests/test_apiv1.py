@@ -129,6 +129,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob):
     # Create test patches
     patch1 = Patch.objects.create(name="Add feature X")
     patch1.authors.add(alice)
+    patch1.reviewers.add(bob)
     patch1.lastmail = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
     patch1.save()
 
@@ -192,6 +193,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob):
     assert p1["name"] == "Add feature X"
     assert p1["status"] == "Needs review"
     assert p1["authors"] == ["Alice Anderson"]
+    assert p1["reviewers"] == ["Bob Brown"]
     assert p1["last_email_time"] == "2025-01-15T10:30:00+00:00"
     assert p1["enterdate"] == "2025-01-01T12:00:00+00:00"
     assert p1["leavedate"] is None
@@ -201,6 +203,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob):
     assert p2["name"] == "Fix bug Y"
     assert p2["status"] == "Committed"
     assert sorted(p2["authors"]) == ["Alice Anderson", "Bob Brown"]
+    assert p2["reviewers"] == []
     assert p2["last_email_time"] is None
     assert p2["enterdate"] == "2025-01-02T08:00:00+00:00"
     assert p2["leavedate"] == "2025-01-20T16:45:00+00:00"
