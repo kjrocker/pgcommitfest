@@ -809,6 +809,16 @@ class PatchHistory(models.Model):
     def __str__(self):
         return "%s - %s" % (self.patch.name, self.date)
 
+    def to_json(self):
+        return {
+            "id": self.id,
+            "patch_id": self.patch_id,
+            "date": self.date,
+            "by": f"{self.by.first_name} {self.by.last_name}" if self.by else None,
+            "by_cfbot": self.by_cfbot,
+            "what": self.what,
+        }
+
     class Meta:
         ordering = ("-date",)
         constraints = [

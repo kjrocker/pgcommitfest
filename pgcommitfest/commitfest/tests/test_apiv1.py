@@ -11,6 +11,7 @@ from pgcommitfest.commitfest.models import (
     MailThread,
     MailThreadAttachment,
     Patch,
+    PatchHistory,
     PatchOnCommitFest,
     TargetVersion,
 )
@@ -312,4 +313,80 @@ def test_patch_threads_endpoint(client, open_cf, alice):
 def test_patch_threads_endpoint_not_found(client, commitfests):
     """Test the threads endpoint returns 404 for non-existent patch."""
     response = client.get("/api/v1/patches/99999/threads")
+    assert response.status_code == 404
+
+
+def make_history(patch, date, what, by=None):
+    """Create a PatchHistory row at a fixed date (date is auto_now_add)."""
+    entry = PatchHistory.objects.create(
+        patch=patch, by=by, by_cfbot=by is None, what=what
+    )
+    PatchHistory.objects.filter(pk=entry.pk).update(date=date)
+    return entry
+
+
+def test_patch_history_endpoint(client, alice):
+    """Test the /api/v1/patches/<id>/history endpoint."""
+    patch = Patch.objects.create(name="Test patch")
+    other = Patch.objects.create(name="Other patch")
+
+    created = make_history(
+        patch, datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc), "Created", alice
+    )
+    rebase = make_history(
+        patch,
+        datetime(2025, 1, 3, 8, 0, 0, tzinfo=timezone.utc),
+        "Patch needs rebase",
+    )
+    status = make_history(
+        patch,
+        datetime(2025, 1, 2, 9, 30, 0, tzinfo=timezone.utc),
+        "New status: Ready for Committer",
+        alice,
+    )
+    make_history(
+        other, datetime(2025, 1, 2, 10, 0, 0, tzinfo=timezone.utc), "Created", alice
+    )
+
+    response = client.get(f"/api/v1/patches/{patch.id}/history")
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == "application/json"
+    assert response["Access-Control-Allow-Origin"] == "*"
+
+    # Oldest first, only this patch, cfbot entries included
+    assert json.loads(response.content) == {
+        "patch_id": patch.id,
+        "history": [
+            {
+                "id": created.id,
+                "patch_id": patch.id,
+                "date": "2025-01-01T12:00:00+00:00",
+                "by": "Alice Anderson",
+                "by_cfbot": False,
+                "what": "Created",
+            },
+            {
+                "id": status.id,
+                "patch_id": patch.id,
+                "date": "2025-01-02T09:30:00+00:00",
+                "by": "Alice Anderson",
+                "by_cfbot": False,
+                "what": "New status: Ready for Committer",
+            },
+            {
+                "id": rebase.id,
+                "patch_id": patch.id,
+                "date": "2025-01-03T08:00:00+00:00",
+                "by": None,
+                "by_cfbot": True,
+                "what": "Patch needs rebase",
+            },
+        ],
+    }
+
+
+def test_patch_history_endpoint_not_found(client, commitfests):
+    """Test the history endpoint returns 404 for non-existent patch."""
+    response = client.get("/api/v1/patches/99999/history")
     assert response.status_code == 404

@@ -1,5 +1,6 @@
 from django.db.models import Prefetch, QuerySet
 from django.http import (
+    Http404,
     HttpResponse,
 )
 from django.shortcuts import get_object_or_404
@@ -11,6 +12,7 @@ from .models import (
     CommitFest,
     MailThread,
     Patch,
+    PatchHistory,
     PatchOnCommitFest,
 )
 
@@ -119,5 +121,30 @@ def patch_threads(request, patch_id):
             "patch_id": patch.id,
             "name": patch.name,
             "threads": threads,
+        }
+    )
+
+
+def patch_history(request, patch_id):
+    """Return the activity history of a patch, oldest first.
+
+    This is the same history shown on the patch page, including the entries
+    made by cfbot.
+    """
+    # Checking existence avoids loading the patch itself, which also loads
+    # all of its many-to-many relations.
+    if not Patch.objects.filter(pk=patch_id).exists():
+        raise Http404("Patch not found")
+
+    history = (
+        PatchHistory.objects.filter(patch_id=patch_id)
+        .select_related("by")
+        .order_by("date", "id")
+    )
+
+    return api_response(
+        {
+            "patch_id": int(patch_id),
+            "history": history,
         }
     )
