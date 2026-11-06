@@ -1,4 +1,4 @@
-from django.db.models import Prefetch, QuerySet
+from django.db.models import Prefetch, Q, QuerySet
 from django.http import (
     Http404,
     HttpResponse,
@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 
 import json
 from datetime import date, datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 from .models import (
     CommitFest,
@@ -41,6 +42,9 @@ def api_response(payload, status=200, content_type="application/json"):
     response["Content-Type"] = content_type
     response["Access-Control-Allow-Origin"] = "*"
     return response
+
+
+HISTORY_PAGE_SIZE = 500
 
 
 def all_commitfests(request):
@@ -148,3 +152,48 @@ def patch_history(request, patch_id):
             "history": history,
         }
     )
+
+
+def history(request):
+    """Return the activity history of all patches, oldest first.
+
+    ?since=<iso8601> returns entries from that time on. Pages hold at most
+    HISTORY_PAGE_SIZE entries; when there are more, "next" is the URL of the
+    following page, otherwise it is null. Entries can share a timestamp, so
+    the cursor also carries the id of the last entry returned (?after=<id>).
+    """
+    since = request.GET.get("since")
+    after = request.GET.get("after")
+
+    entries = PatchHistory.objects.select_related("by").order_by("date", "id")
+
+    if since is not None:
+        try:
+            since = datetime.fromisoformat(since)
+        except ValueError:
+            return api_response({"error": "since must be an ISO 8601 date"}, 400)
+        # Dates are stored in UTC without a timezone
+        if since.tzinfo is not None:
+            since = since.astimezone(timezone.utc).replace(tzinfo=None)
+        entries = entries.filter(date__gte=since)
+
+    if after is not None:
+        if since is None:
+            return api_response({"error": "after requires since"}, 400)
+        try:
+            after = int(after)
+        except ValueError:
+            return api_response({"error": "after must be an integer"}, 400)
+        entries = entries.filter(Q(date__gt=since) | Q(id__gt=after))
+
+    page = list(entries[: HISTORY_PAGE_SIZE + 1])
+    next_url = None
+    if len(page) > HISTORY_PAGE_SIZE:
+        page = page[:HISTORY_PAGE_SIZE]
+        last = page[-1]
+        next_url = "{}?{}".format(
+            request.path,
+            urlencode({"since": datetime_serializer(last.date), "after": last.id}),
+        )
+
+    return api_response({"history": page, "next": next_url})

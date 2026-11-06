@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from pgcommitfest.commitfest import apiv1
 from pgcommitfest.commitfest.models import (
     Committer,
     MailThread,
@@ -390,3 +391,90 @@ def test_patch_history_endpoint_not_found(client, commitfests):
     """Test the history endpoint returns 404 for non-existent patch."""
     response = client.get("/api/v1/patches/99999/history")
     assert response.status_code == 404
+
+
+def test_history_endpoint(client, alice):
+    """Test the /api/v1/history endpoint."""
+    patch1 = Patch.objects.create(name="Add feature X")
+    patch2 = Patch.objects.create(name="Fix bug Y")
+
+    first = make_history(
+        patch1, datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc), "Created", alice
+    )
+    rebase = make_history(
+        patch2,
+        datetime(2025, 1, 3, 8, 0, 0, tzinfo=timezone.utc),
+        "Patch needs rebase",
+    )
+    status = make_history(
+        patch1,
+        datetime(2025, 1, 2, 9, 30, 0, tzinfo=timezone.utc),
+        "New status: Ready for Committer",
+        alice,
+    )
+
+    response = client.get("/api/v1/history")
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == "application/json"
+    assert response["Access-Control-Allow-Origin"] == "*"
+
+    # All patches, oldest first, cfbot entries included
+    data = json.loads(response.content)
+    assert data["next"] is None
+    assert [h["id"] for h in data["history"]] == [first.id, status.id, rebase.id]
+    assert data["history"][2] == {
+        "id": rebase.id,
+        "patch_id": patch2.id,
+        "date": "2025-01-03T08:00:00+00:00",
+        "by": None,
+        "by_cfbot": True,
+        "what": "Patch needs rebase",
+    }
+
+    # since is inclusive and accepts any timezone
+    response = client.get("/api/v1/history", {"since": "2025-01-02T10:30:00+01:00"})
+    data = json.loads(response.content)
+    assert [h["id"] for h in data["history"]] == [status.id, rebase.id]
+
+
+def test_history_endpoint_pagination(client, alice, monkeypatch):
+    """Following next walks every entry once, even across shared timestamps."""
+    monkeypatch.setattr(apiv1, "HISTORY_PAGE_SIZE", 2)
+    patch = Patch.objects.create(name="Add feature X")
+
+    # A bulk move at commitfest close gives many entries the same timestamp
+    close = datetime(2025, 2, 1, 0, 0, 0, tzinfo=timezone.utc)
+    entries = [
+        make_history(patch, datetime(2025, 1, 1, tzinfo=timezone.utc), "Created", alice)
+    ] + [make_history(patch, close, f"Moved {i}") for i in range(4)]
+
+    seen = []
+    url = "/api/v1/history"
+    pages = 0
+    while url:
+        response = client.get(url)
+        assert response.status_code == 200
+        data = json.loads(response.content)
+        assert len(data["history"]) <= 2
+        seen.extend(h["id"] for h in data["history"])
+        url = data["next"]
+        pages += 1
+
+    assert seen == [e.id for e in entries]
+    assert pages == 3
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"since": "yesterday"},
+        {"after": "1"},
+        {"since": "2025-01-01T00:00:00+00:00", "after": "x"},
+    ],
+)
+def test_history_endpoint_bad_params(client, params):
+    """Test the history endpoint rejects malformed cursors."""
+    response = client.get("/api/v1/history", params)
+    assert response.status_code == 400
+    assert "error" in json.loads(response.content)
