@@ -662,6 +662,11 @@ class Patch(models.Model, DiffableModel):
             "reviewers": [
                 f"{r.first_name} {r.last_name}" for r in self.reviewers.all()
             ],
+            "committer": (
+                f"{self.committer.user.first_name} {self.committer.user.last_name}"
+                if self.committer
+                else None
+            ),
             "last_email_time": self.lastmail,
         }
 

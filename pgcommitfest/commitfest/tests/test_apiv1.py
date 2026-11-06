@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import pytest
 
 from pgcommitfest.commitfest.models import (
+    Committer,
     MailThread,
     MailThreadAttachment,
     Patch,
@@ -124,7 +125,7 @@ def test_needs_ci_endpoint(client, commitfests):
     assert data == expected
 
 
-def test_commitfest_patches_endpoint(client, open_cf, alice, bob):
+def test_commitfest_patches_endpoint(client, open_cf, alice, bob, charlie):
     """Test the /api/v1/commitfests/<id>/patches endpoint."""
     # Create test patches
     patch1 = Patch.objects.create(name="Add feature X")
@@ -135,6 +136,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob):
 
     patch2 = Patch.objects.create(name="Fix bug Y")
     patch2.authors.add(alice, bob)
+    patch2.committer = Committer.objects.create(user=charlie)
     patch2.save()
 
     # Link patches to commitfest
@@ -194,6 +196,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob):
     assert p1["status"] == "Needs review"
     assert p1["authors"] == ["Alice Anderson"]
     assert p1["reviewers"] == ["Bob Brown"]
+    assert p1["committer"] is None
     assert p1["last_email_time"] == "2025-01-15T10:30:00+00:00"
     assert p1["enterdate"] == "2025-01-01T12:00:00+00:00"
     assert p1["leavedate"] is None
@@ -204,6 +207,7 @@ def test_commitfest_patches_endpoint(client, open_cf, alice, bob):
     assert p2["status"] == "Committed"
     assert sorted(p2["authors"]) == ["Alice Anderson", "Bob Brown"]
     assert p2["reviewers"] == []
+    assert p2["committer"] == "Charlie Chen"
     assert p2["last_email_time"] is None
     assert p2["enterdate"] == "2025-01-02T08:00:00+00:00"
     assert p2["leavedate"] == "2025-01-20T16:45:00+00:00"
