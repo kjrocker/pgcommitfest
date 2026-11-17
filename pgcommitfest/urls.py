@@ -70,3 +70,5 @@ urlpatterns = [
     # Uncomment the next line to enable the admin:
     re_path(r"^admin/", admin.site.urls),
 ]
+
+handler404 = apiv1.handler404

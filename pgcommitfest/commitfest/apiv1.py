@@ -3,6 +3,8 @@ from django.http import (
     HttpResponse,
 )
 from django.shortcuts import get_object_or_404
+from django.urls import Resolver404
+from django.views import defaults
 
 import json
 from datetime import date, datetime, timedelta, timezone
@@ -30,6 +32,24 @@ def datetime_serializer(obj):
         return list(obj)
 
     raise TypeError(f"Type {type(obj)} not serializable to JSON")
+
+
+def api_error(message, status):
+    return api_response({"error": message}, status=status)
+
+
+def is_api_request(request):
+    return request.path.startswith("/api/")
+
+
+def handler404(request, exception):
+    """Project-wide 404 handler: JSON for /api/ paths, HTML elsewhere."""
+    if not is_api_request(request):
+        return defaults.page_not_found(request, exception)
+    message = ""
+    if not isinstance(exception, Resolver404):
+        message = str(exception)
+    return api_error(message or "Not found", 404)
 
 
 def api_response(payload, status=200, content_type="application/json"):
