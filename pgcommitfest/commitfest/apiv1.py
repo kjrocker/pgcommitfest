@@ -52,6 +52,13 @@ def handler404(request, exception):
     return api_error(message or "Not found", 404)
 
 
+def handler500(request):
+    """Project-wide 500 handler: JSON for /api/ paths, HTML elsewhere."""
+    if not is_api_request(request):
+        return defaults.server_error(request)
+    return api_error("Internal server error", 500)
+
+
 def api_response(payload, status=200, content_type="application/json"):
     response = HttpResponse(
         json.dumps(payload, default=datetime_serializer), status=status

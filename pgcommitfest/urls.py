@@ -72,3 +72,4 @@ urlpatterns = [
 ]
 
 handler404 = apiv1.handler404
+handler500 = apiv1.handler500
