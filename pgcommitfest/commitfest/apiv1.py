@@ -1,8 +1,8 @@
 from django.db.models import Prefetch, QuerySet
 from django.http import (
+    Http404,
     HttpResponse,
 )
-from django.shortcuts import get_object_or_404
 from django.urls import Resolver404
 from django.views import defaults
 
@@ -96,7 +96,9 @@ def commitfest_patches(request, cfid):
     Threads for every patch can be included with ?include=threads. Unknown
     tokens are ignored.
     """
-    cf = get_object_or_404(CommitFest, pk=cfid)
+    cf = CommitFest.objects.filter(pk=cfid).first()
+    if cf is None:
+        raise Http404("Commitfest not found")
 
     include = {i.strip() for i in request.GET.get("include", "").split(",")}
     include_threads = "threads" in include
@@ -137,7 +139,9 @@ def patch_threads(request, patch_id):
     This endpoint provides the data that cfbot previously scraped from the
     patch HTML page to construct thread URLs.
     """
-    patch = get_object_or_404(Patch, pk=patch_id)
+    patch = Patch.objects.filter(pk=patch_id).first()
+    if patch is None:
+        raise Http404("Patch not found")
 
     threads = patch.mailthread_set.with_has_attachment()
 

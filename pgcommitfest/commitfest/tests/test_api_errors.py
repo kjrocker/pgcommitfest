@@ -18,14 +18,14 @@ def assert_json_error(response, status):
 
 
 @pytest.mark.parametrize(
-    "path",
+    "path,message",
     [
-        "/api/v1/commitfests/999999/patches",
-        "/api/v1/patches/999999/threads",
+        ("/api/v1/commitfests/999999/patches", "Commitfest not found"),
+        ("/api/v1/patches/999999/threads", "Patch not found"),
     ],
 )
-def test_missing_object_returns_json_404(client, path):
-    assert_json_error(client.get(path), 404)
+def test_missing_object_returns_json_404(client, path, message):
+    assert assert_json_error(client.get(path), 404) == message
 
 
 def test_unknown_api_url_returns_json_404(client):
